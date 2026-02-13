@@ -1,0 +1,63 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Video {
+  id            String   @id @default(uuid())
+  videoUri      String   @map("video_uri")
+  containerType String   @map("container_type")
+  model         String
+  region        String   @default("us-west-2")
+  status        String   @default("processing") // 'processing' | 'completed' | 'failed'
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  pipelines     Pipeline[]
+
+  @@map("videos")
+}
+
+model Pipeline {
+  id             String   @id @default(uuid())
+  videoId        String   @map("video_id")
+  pipelineName   String   @map("pipeline_name")
+  error          String?
+  selectedFrames Json?    @map("selected_frames") // Array of numbers
+  frameRate      Int?     @map("frame_rate")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  detections     Detection[]
+  extractedFrames ExtractedFrame[]
+
+  @@map("pipelines")
+}
+
+model Detection {
+  id         String   @id @default(uuid())
+  pipelineId String   @map("pipeline_id")
+  videoUri   String   @map("video_uri")
+  attributes Json?    // final_json.videoAttributes
+  evidence   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("detections")
+}
+
+model ExtractedFrame {
+  id          String   @id @default(uuid())
+  pipelineId  String   @map("pipeline_id")
+  framePath   String   @map("frame_path")
+  frameNumber Int      @map("frame_number")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  pipeline    Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("extracted_frames")
+}

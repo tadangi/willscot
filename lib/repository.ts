@@ -129,4 +129,93 @@ export class MockVideoRepository implements VideoRepository {
 }
 
 // Singleton instance
-export const videoRepository = new MockVideoRepository();
+// export const videoRepository = new MockVideoRepository();
+
+import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+const connectionString = process.env.DATABASE_URL;
+const pool = new Pool({
+    connectionString,
+    ssl: { rejectUnauthorized: false } // Required for AWS RDS in many cases if CA isn't provided
+});
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+
+export class DbVideoRepository implements VideoRepository {
+    async createVideo(video: NewVideo): Promise<Video> {
+        return prisma.video.create({
+            data: {
+                videoUri: video.videoUri,
+                containerType: video.containerType,
+                model: video.model,
+                region: video.region,
+                status: video.status,
+            }
+        });
+    }
+
+    async getVideo(id: string): Promise<Video | undefined> {
+        const video = await prisma.video.findUnique({ where: { id } });
+        return video || undefined;
+    }
+
+    async getAllVideos(): Promise<Video[]> {
+        return prisma.video.findMany({ orderBy: { createdAt: 'desc' } });
+    }
+
+    async updateVideoStatus(id: string, status: string): Promise<void> {
+        await prisma.video.update({
+            where: { id },
+            data: { status },
+        });
+    }
+
+    async createPipeline(pipeline: NewPipeline): Promise<Pipeline> {
+        return prisma.pipeline.create({
+            data: {
+                videoId: pipeline.videoId,
+                pipelineName: pipeline.pipelineName,
+                error: pipeline.error,
+                selectedFrames: pipeline.selectedFrames as any,
+                frameRate: pipeline.frameRate,
+            }
+        });
+    }
+
+    async getPipelinesByVideoId(videoId: string): Promise<Pipeline[]> {
+        return prisma.pipeline.findMany({ where: { videoId } });
+    }
+
+    async createDetection(detection: NewDetection): Promise<Detection> {
+        return prisma.detection.create({
+            data: {
+                pipelineId: detection.pipelineId,
+                videoUri: detection.videoUri,
+                attributes: detection.attributes as any,
+                evidence: detection.evidence as any,
+            }
+        });
+    }
+
+    async getDetectionsByPipelineId(pipelineId: string): Promise<Detection[]> {
+        return prisma.detection.findMany({ where: { pipelineId } });
+    }
+
+    async createExtractedFrame(frame: NewExtractedFrame): Promise<ExtractedFrame> {
+        return prisma.extractedFrame.create({
+            data: {
+                pipelineId: frame.pipelineId,
+                framePath: frame.framePath,
+                frameNumber: frame.frameNumber,
+            }
+        });
+    }
+
+    async getExtractedFramesByPipelineId(pipelineId: string): Promise<ExtractedFrame[]> {
+        return prisma.extractedFrame.findMany({ where: { pipelineId } });
+    }
+}
+
+export const videoRepository = new DbVideoRepository();
